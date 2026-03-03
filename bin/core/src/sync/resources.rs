@@ -86,7 +86,14 @@ impl ResourceSyncTrait for Stack {
       Self::Info,
     >,
   ) -> String {
-    format!("{}:{}", resource.name, resource.config.server_id)
+    // Resolve server_id (ObjectId) to server name to match TOML keys.
+    let server_name = all_resources_cache()
+      .load()
+      .servers
+      .get(&resource.config.server_id)
+      .map(|s| s.name.clone())
+      .unwrap_or_default();
+    format!("{}:{}", resource.name, server_name)
   }
 
   fn sync_key_partial(

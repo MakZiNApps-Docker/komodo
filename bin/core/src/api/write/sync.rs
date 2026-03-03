@@ -706,10 +706,15 @@ impl Resolve<WriteArgs> for RefreshResourceSyncPending {
           let stacks_by_name = all_resources
             .stacks
             .values()
-            .map(|stack| (
-              (stack.name.clone(), stack.config.server_id.clone()),
-              stack.clone(),
-            ))
+            .map(|stack| {
+              // Resolve server_id to name to match TOML keys.
+              let server_name = all_resources
+                .servers
+                .get(&stack.config.server_id)
+                .map(|s| s.name.clone())
+                .unwrap_or_default();
+              ((stack.name.clone(), server_name), stack.clone())
+            })
             .collect::<HashMap<_, _>>();
 
           let deploy_updates =
