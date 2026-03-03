@@ -131,6 +131,22 @@ pub trait KomodoResource {
     to_general_name(name)
   }
 
+  /// Whether this resource type allows duplicate names (scoped by server).
+  /// When true, lookups by name will check for ambiguity.
+  fn server_scoped_names() -> bool {
+    false
+  }
+
+  /// Returns the DB query to check for duplicate names during create/rename.
+  /// Default: globally unique by name.
+  /// Override for server-scoped resources (e.g. Stack).
+  fn name_uniqueness_query(
+    name: &str,
+    _config: &Self::PartialConfig,
+  ) -> Document {
+    doc! { "name": name }
+  }
+
   /// These permissions go to the creator of the resource,
   /// and include full access to the resource.
   fn creator_specific_permissions() -> IndexSet<SpecificPermission> {
@@ -237,16 +253,42 @@ pub async fn get<T: KomodoResource>(
       T::resource_type()
     ));
   }
-  T::coll()
-    .find_one(id_or_name_filter(id_or_name))
+  let filter = id_or_name_filter(id_or_name);
+  // For server-scoped resources looked up by name, check for ambiguity.
+  if T::server_scoped_names()
+    && ObjectId::from_str(id_or_name).is_err()
+  {
+    let results: Vec<_> = find_collect(
+      T::coll(),
+      filter,
+      FindOptions::builder().limit(2).build(),
+    )
     .await
-    .context("failed to query db for resource")?
-    .with_context(|| {
-      format!(
+    .context("failed to query db for resource")?;
+    match results.len() {
+      0 => Err(anyhow!(
         "did not find any {} matching {id_or_name}",
         T::resource_type()
-      )
-    })
+      )),
+      1 => Ok(results.into_iter().next().unwrap()),
+      _ => Err(anyhow!(
+        "Multiple {}s named '{}' exist on different servers. Use the resource ID instead.",
+        T::resource_type(),
+        id_or_name
+      )),
+    }
+  } else {
+    T::coll()
+      .find_one(filter)
+      .await
+      .context("failed to query db for resource")?
+      .with_context(|| {
+        format!(
+          "did not find any {} matching {id_or_name}",
+          T::resource_type()
+        )
+      })
+  }
 }
 
 // ======
@@ -487,18 +529,14 @@ pub async fn create<T: KomodoResource>(
     );
   }
 
-  // Ensure an existing resource with same name doesn't already exist
+  // Ensure an existing resource with same name doesn't already exist.
   // The database indexing also ensures this but doesn't give a good error message.
-  if list_full_for_user::<T>(
-    Default::default(),
-    system_user(),
-    PermissionLevel::Read.into(),
-    &[],
-  )
-  .await
-  .context("Failed to list all resources for duplicate name check")?
-  .into_iter()
-  .any(|r| r.name == name)
+  // For server-scoped resources (Stack), this checks uniqueness per server.
+  if T::coll()
+    .find_one(T::name_uniqueness_query(&name, &config))
+    .await
+    .context("Failed to check for duplicate name")?
+    .is_some()
   {
     return Err(
       anyhow!("Resource with name '{}' already exists", name)
@@ -792,10 +830,17 @@ pub async fn rename<T: KomodoResource>(
   )
   .await
   .with_context(|| {
-    format!(
-      "Failed to update {ty} on db. This name may already be taken.",
-      ty = T::resource_type()
-    )
+    if T::server_scoped_names() {
+      format!(
+        "Failed to rename {ty}. A {ty} with this name may already exist on this server.",
+        ty = T::resource_type()
+      )
+    } else {
+      format!(
+        "Failed to update {ty} on db. This name may already be taken.",
+        ty = T::resource_type()
+      )
+    }
   })?;
 
   update.push_simple_log(

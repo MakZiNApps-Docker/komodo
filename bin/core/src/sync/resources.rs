@@ -80,6 +80,23 @@ impl ResourceSyncTrait for Deployment {
 impl ExecuteResourceSync for Deployment {}
 
 impl ResourceSyncTrait for Stack {
+  fn sync_key(
+    resource: &komodo_client::entities::resource::Resource<
+      Self::Config,
+      Self::Info,
+    >,
+  ) -> String {
+    format!("{}:{}", resource.name, resource.config.server_id)
+  }
+
+  fn sync_key_partial(
+    name: &str,
+    config: &Self::PartialConfig,
+  ) -> String {
+    let server_id = config.server_id.as_deref().unwrap_or("");
+    format!("{name}:{server_id}")
+  }
+
   fn get_diff(
     mut original: Self::Config,
     update: Self::PartialConfig,

@@ -39,7 +39,7 @@ pub async fn get_updates_for_execution<
         match_tags,
       )
     })
-    .map(|r| (r.name.clone(), r))
+    .map(|r| (Resource::sync_key(&r), r))
     .collect::<HashMap<_, _>>();
   let resources = resources
     .into_iter()
@@ -59,15 +59,21 @@ pub async fn get_updates_for_execution<
   let mut deltas = SyncDeltas::<Resource::PartialConfig>::default();
 
   if delete {
-    for resource in map.values() {
-      if !resources.iter().any(|r| r.name == resource.name) {
-        deltas.to_delete.push(resource.name.clone());
+    for (key, resource) in &map {
+      if !resources
+        .iter()
+        .any(|r| Resource::sync_key_partial(&r.name, &r.config) == *key)
+      {
+        // Use ID for deletion to avoid ambiguity with server-scoped names.
+        deltas.to_delete.push(resource.id.clone());
       }
     }
   }
 
   for mut resource in resources {
-    match map.get(&resource.name) {
+    let key =
+      Resource::sync_key_partial(&resource.name, &resource.config);
+    match map.get(&key) {
       Some(original) => {
         // First merge toml resource config (partial) onto default resource config.
         // Makes sure things that aren't defined in toml (come through as None) actually get removed.

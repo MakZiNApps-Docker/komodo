@@ -37,7 +37,7 @@ pub async fn push_updates_for_view<Resource: ResourceSyncTrait>(
         match_tags,
       )
     })
-    .map(|r| (r.name.clone(), r))
+    .map(|r| (Resource::sync_key(&r), r))
     .collect::<HashMap<_, _>>();
 
   let resources = resources
@@ -56,8 +56,11 @@ pub async fn push_updates_for_view<Resource: ResourceSyncTrait>(
     .collect::<Vec<_>>();
 
   if delete {
-    for current_resource in current_map.values() {
-      if !resources.iter().any(|r| r.name == current_resource.name) {
+    for (key, current_resource) in &current_map {
+      if !resources
+        .iter()
+        .any(|r| Resource::sync_key_partial(&r.name, &r.config) == *key)
+      {
         diffs.push(ResourceDiff {
           target: Resource::resource_target(
             current_resource.id.clone(),
@@ -76,7 +79,11 @@ pub async fn push_updates_for_view<Resource: ResourceSyncTrait>(
   }
 
   for mut proposed_resource in resources {
-    match current_map.get(&proposed_resource.name) {
+    let key = Resource::sync_key_partial(
+      &proposed_resource.name,
+      &proposed_resource.config,
+    );
+    match current_map.get(&key) {
       Some(current_resource) => {
         // First merge toml resource config (partial) onto default resource config.
         // Makes sure things that aren't defined in toml (come through as None) actually get removed.
