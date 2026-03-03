@@ -43,6 +43,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/komodo-binaries:latest-${{ matrix.arch }}
+          provenance: false
           cache-from: type=gha,scope=binaries-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=binaries-${{ matrix.arch }}
 
@@ -68,6 +69,7 @@ jobs:
           file: frontend/Dockerfile
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/komodo-frontend:latest
+          provenance: false
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
