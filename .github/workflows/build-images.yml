@@ -3,7 +3,7 @@ name: Build and Push Docker Images
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v1*"]
   workflow_dispatch:
 
 env:
@@ -27,6 +27,13 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set version from tag
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" client/core/ts/package.json
 
       - uses: docker/login-action@v3
         with:
@@ -151,3 +158,23 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             BINARIES_IMAGE=${{ env.IMAGE_PREFIX }}/komodo-binaries:latest
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [build-core, build-periphery]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Komodo ${VERSION}" \
+            --generate-notes \
+            --notes "Core image: \`${{ env.IMAGE_PREFIX }}/komodo-core:${VERSION}\`
+          Periphery image: \`${{ env.IMAGE_PREFIX }}/komodo-periphery:${VERSION}\`"
