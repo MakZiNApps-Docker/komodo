@@ -48,7 +48,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: bin/binaries.Dockerfile
+          file: bin/chef.binaries.Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/komodo-binaries:2-dev-${{ matrix.arch }}
