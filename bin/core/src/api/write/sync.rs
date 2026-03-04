@@ -554,7 +554,7 @@ impl Resolve<WriteArgs> for CommitSync {
           format_serror(&e.into()),
         );
         update.finalize();
-        add_update(update.clone()).await?;
+        update_update(update.clone()).await?;
         return Ok(update);
       } else {
         update.push_simple_log(
@@ -577,7 +577,7 @@ impl Resolve<WriteArgs> for CommitSync {
           format_serror(&e.into()),
         );
         update.finalize();
-        add_update(update.clone()).await?;
+        update_update(update.clone()).await?;
         return Ok(update);
       }
     } else if !sync.config.repo.is_empty() {
@@ -595,7 +595,7 @@ impl Resolve<WriteArgs> for CommitSync {
           format_serror(&e.into()),
         );
         update.finalize();
-        add_update(update.clone()).await?;
+        update_update(update.clone()).await?;
         return Ok(update);
       }
 
@@ -615,7 +615,7 @@ impl Resolve<WriteArgs> for CommitSync {
         format_serror(&e.into()),
       );
       update.finalize();
-      add_update(update.clone()).await?;
+      update_update(update.clone()).await?;
       return Ok(update);
     }
 
