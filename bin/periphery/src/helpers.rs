@@ -53,10 +53,33 @@ pub fn format_labels(labels: &[EnvironmentVar]) -> String {
       if p.value.starts_with(QUOTE_PATTERN)
         && p.value.ends_with(QUOTE_PATTERN)
       {
-        // If the value already wrapped in quotes, don't wrap it again
-        format!(" --label {}={}", p.variable, p.value)
+        if p.value.starts_with('\'') {
+          // Single-quoted: backticks are literal, pass through as-is
+          format!(" --label {}={}", p.variable, p.value)
+        } else if let Some(inner) = p
+          .value
+          .strip_prefix('"')
+          .and_then(|s| s.strip_suffix('"'))
+        {
+          // Double-quoted: escape backticks to prevent shell
+          // command substitution (needed for e.g. Traefik Host() rules)
+          format!(
+            " --label {}=\"{}\"",
+            p.variable,
+            inner.replace('`', "\\`")
+          )
+        } else {
+          // Mismatched quotes: pass through as-is
+          format!(" --label {}={}", p.variable, p.value)
+        }
       } else {
-        format!(" --label {}=\"{}\"", p.variable, p.value)
+        // Escape backticks to prevent shell command substitution
+        // when value is wrapped in double quotes
+        format!(
+          " --label {}=\"{}\"",
+          p.variable,
+          p.value.replace('`', "\\`")
+        )
       }
     })
     .collect::<Vec<_>>()
@@ -71,12 +94,34 @@ pub fn push_labels(
     if label.value.starts_with(QUOTE_PATTERN)
       && label.value.ends_with(QUOTE_PATTERN)
     {
-      write!(command, " --label {}={}", label.variable, label.value)
+      if label.value.starts_with('\'') {
+        // Single-quoted: backticks are literal, pass through as-is
+        write!(command, " --label {}={}", label.variable, label.value)
+      } else if let Some(inner) = label
+        .value
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+      {
+        // Double-quoted: escape backticks to prevent shell
+        // command substitution (needed for e.g. Traefik Host() rules)
+        write!(
+          command,
+          " --label {}=\"{}\"",
+          label.variable,
+          inner.replace('`', "\\`")
+        )
+      } else {
+        // Mismatched quotes: pass through as-is
+        write!(command, " --label {}={}", label.variable, label.value)
+      }
     } else {
+      // Escape backticks to prevent shell command substitution
+      // when value is wrapped in double quotes
       write!(
         command,
         " --label {}=\"{}\"",
-        label.variable, label.value
+        label.variable,
+        label.value.replace('`', "\\`")
       )
     }
     .context("Failed to write labels to command")?;
@@ -104,9 +149,30 @@ pub fn push_environment(
     if value.starts_with(QUOTE_PATTERN)
       && value.ends_with(QUOTE_PATTERN)
     {
-      write!(command, " --env {variable}={value}")
+      if value.starts_with('\'') {
+        // Single-quoted: backticks are literal, pass through as-is
+        write!(command, " --env {variable}={value}")
+      } else if let Some(inner) =
+        value.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
+      {
+        // Double-quoted: escape backticks to prevent shell
+        // command substitution
+        write!(
+          command,
+          " --env {variable}=\"{}\"",
+          inner.replace('`', "\\`")
+        )
+      } else {
+        // Mismatched quotes: pass through as-is
+        write!(command, " --env {variable}={value}")
+      }
     } else {
-      write!(command, " --env {variable}=\"{value}\"")
+      // Escape backticks to prevent shell command substitution
+      write!(
+        command,
+        " --env {variable}=\"{}\"",
+        value.replace('`', "\\`")
+      )
     }
     .context("Failed to format environment")?;
   }
