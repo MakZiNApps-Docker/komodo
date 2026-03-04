@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use database::mungos::mongodb::bson::oid::ObjectId;
 use komodo_client::entities::{
   ResourceTargetVariant,
+  resource::Resource,
   tag::Tag,
   toml::{ResourceToml, ResourcesToml},
 };
@@ -45,6 +46,24 @@ pub struct ToUpdateItem<T: Default> {
 }
 
 pub trait ResourceSyncTrait: ToToml + Sized {
+  /// Returns the key for identifying a resource in sync maps.
+  /// Default: the resource name (globally unique).
+  /// Override for server-scoped resources to include server_id.
+  fn sync_key(
+    resource: &Resource<Self::Config, Self::Info>,
+  ) -> String {
+    resource.name.clone()
+  }
+
+  /// Returns the key for a resource toml entry in sync maps.
+  /// Must match the key format from `sync_key`.
+  fn sync_key_partial(
+    name: &str,
+    _config: &Self::PartialConfig,
+  ) -> String {
+    name.to_string()
+  }
+
   /// To exclude resource syncs with "file_contents" (they aren't compatible)
   fn include_resource(
     name: &String,

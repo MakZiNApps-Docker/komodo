@@ -288,10 +288,12 @@ impl Resolve<ExecuteArgs> for DeployStack {
       let info = to_document(&info)
         .context("Failed to serialize stack info to bson")?;
 
+      let oid = ObjectId::from_str(&stack.id)
+        .context("stack id is not a valid ObjectId")?;
       db_client()
         .stacks
         .update_one(
-          doc! { "name": &stack.name },
+          doc! { "_id": oid },
           doc! { "$set": { "info": info } },
         )
         .await

@@ -50,8 +50,8 @@ pub struct SyncDeployParams<'a> {
   // Names to deployments
   pub deployment_map: &'a HashMap<String, Deployment>,
   pub stacks: &'a [ResourceToml<PartialStackConfig>],
-  // Names to stacks
-  pub stack_map: &'a HashMap<String, Stack>,
+  // (name, server_id) to stacks — server-scoped names
+  pub stack_map: &'a HashMap<(String, String), Stack>,
 }
 
 pub async fn deploy_from_cache(
@@ -508,7 +508,23 @@ fn build_cache_for_stack<'a>(
   build_version_cache: &'a mut BuildVersionCache,
 ) -> BuildRes<'a> {
   Box::pin(async move {
-    let target = ResourceTarget::Stack(stack.name.clone());
+    let stack_key = (
+      stack.name.clone(),
+      stack
+        .config
+        .server_id
+        .as_deref()
+        .unwrap_or("")
+        .to_string(),
+    );
+
+    // Use ID for existing stacks, name for new ones.
+    let existing = stack_map.get(&stack_key);
+    let target = ResourceTarget::Stack(
+      existing
+        .map(|s| s.id.clone())
+        .unwrap_or_else(|| stack.name.clone()),
+    );
 
     // First check existing, and continue if already handled.
     if cache.contains_key(&target) {
@@ -530,8 +546,8 @@ fn build_cache_for_stack<'a>(
       stacks,
     )?;
 
-    let Some(original) = stack_map.get(&stack.name) else {
-      // This block is the None case, deployment is not created, should definitely deploy
+    let Some(original) = existing else {
+      // This block is the None case, stack is not created, should definitely deploy
       cache.insert(
         target,
         Some((String::from("deploy on creation"), after)),
@@ -803,8 +819,8 @@ fn get_after_as_resource_targets(
   // Names to deployments
   deployment_map: &HashMap<String, Deployment>,
   deployments: &[ResourceToml<PartialDeploymentConfig>],
-  // Names to stacks
-  stack_map: &HashMap<String, Stack>,
+  // (name, server_id) to stacks
+  stack_map: &HashMap<(String, String), Stack>,
   stacks: &[ResourceToml<PartialStackConfig>],
 ) -> anyhow::Result<Vec<ResourceTarget>> {
   after
@@ -817,20 +833,18 @@ fn get_after_as_resource_targets(
           .any(|deployment| deployment.name.as_str() == resource_name)
         {
           Ok(ResourceTarget::Deployment(name.clone()))
+        } else if stack_map
+          .keys()
+          .any(|(n, _)| n == name)
+        {
+          Ok(ResourceTarget::Stack(name.clone()))
+        } else if stacks
+          .iter()
+          .any(|stack| stack.name.as_str() == resource_name)
+        {
+          Ok(ResourceTarget::Stack(name.clone()))
         } else {
-          match stack_map.get(name) {
-            Some(_) => Ok(ResourceTarget::Stack(name.clone())),
-            None => {
-              if stacks
-                .iter()
-                .any(|stack| stack.name.as_str() == resource_name)
-              {
-                Ok(ResourceTarget::Stack(name.clone()))
-              } else {
-                Err(anyhow!("failed to match deploy dependency in 'after' list | resource: {resource_name} | dependency: {name}"))
-              }
-            }
-          }
+          Err(anyhow!("failed to match deploy dependency in 'after' list | resource: {resource_name} | dependency: {name}"))
         }
       }
     })

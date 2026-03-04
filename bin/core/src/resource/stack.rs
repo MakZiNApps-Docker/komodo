@@ -1,5 +1,5 @@
 use anyhow::Context;
-use database::mungos::mongodb::Collection;
+use database::mungos::mongodb::{Collection, bson::doc};
 use formatting::format_serror;
 use indexmap::IndexSet;
 use komodo_client::{
@@ -60,8 +60,22 @@ impl super::KomodoResource for Stack {
     ResourceTarget::Stack(id.into())
   }
 
+  fn server_scoped_names() -> bool {
+    true
+  }
+
   fn validated_name(name: &str) -> String {
     to_docker_compatible_name(name)
+  }
+
+  /// Stack names are unique per-server, not globally.
+  fn name_uniqueness_query(
+    name: &str,
+    config: &Self::PartialConfig,
+  ) -> database::mungos::mongodb::bson::Document {
+    let server_id =
+      config.server_id.as_deref().unwrap_or("");
+    doc! { "name": name, "config.server_id": server_id }
   }
 
   fn creator_specific_permissions() -> IndexSet<SpecificPermission> {

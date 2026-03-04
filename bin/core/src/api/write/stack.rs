@@ -1,11 +1,11 @@
-use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::OnceLock};
 
 use anyhow::{Context, anyhow};
 use database::{
   bson::to_bson,
   mungos::{
     by_id::update_one_by_id,
-    mongodb::bson::{doc, to_document},
+    mongodb::bson::{doc, oid::ObjectId, to_document},
   },
 };
 use formatting::format_serror;
@@ -650,10 +650,12 @@ impl Resolve<WriteArgs> for RefreshStackCache {
     let info = to_document(&info)
       .context("failed to serialize stack info to bson")?;
 
+    let oid = ObjectId::from_str(&stack.id)
+      .context("stack id is not a valid ObjectId")?;
     db_client()
       .stacks
       .update_one(
-        doc! { "name": &stack.name },
+        doc! { "_id": oid },
         doc! { "$set": { "info": info } },
       )
       .await

@@ -26,7 +26,9 @@ use komodo_client::entities::{
   user_group::UserGroup,
   variable::Variable,
 };
-use mongo_indexed::{create_index, create_unique_index};
+use mongo_indexed::{
+  create_index, create_unique_index, create_unique_index_from_doc,
+};
 use mungos::{
   by_id::update_one_by_id,
   init::MongoBuilder,
@@ -106,7 +108,7 @@ impl Client {
       actions: resource_collection(&db, "Action").await?,
       resource_syncs: resource_collection(&db, "ResourceSync")
         .await?,
-      stacks: resource_collection(&db, "Stack").await?,
+      stacks: stack_collection(&db).await?,
       //
       db,
     };
@@ -249,6 +251,29 @@ async fn resource_collection<T: Send + Sync>(
   let coll = db.collection::<T>(collection_name);
 
   create_unique_index(&coll, "name").await?;
+
+  create_index(&coll, "tags").await?;
+
+  Ok(coll)
+}
+
+/// Stack uses a compound unique index on (name, config.server_id)
+/// instead of just name, allowing the same stack name on different servers.
+async fn stack_collection<T: Send + Sync>(
+  db: &Database,
+) -> anyhow::Result<Collection<T>> {
+  let coll = db.collection::<T>("Stack");
+
+  // Drop the old single-field unique index on "name" if it exists.
+  // Ignore errors (index may not exist on fresh installs).
+  let _ = coll.drop_index("name_1").await;
+
+  // Create compound unique index on (name, config.server_id).
+  create_unique_index_from_doc(
+    &coll,
+    doc! { "name": 1, "config.server_id": 1 },
+  )
+  .await?;
 
   create_index(&coll, "tags").await?;
 

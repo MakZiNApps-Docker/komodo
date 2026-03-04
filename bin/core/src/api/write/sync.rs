@@ -759,7 +759,10 @@ impl Resolve<WriteArgs> for RefreshResourceSyncPending {
           let stacks_by_name = all_resources
             .stacks
             .values()
-            .map(|stack| (stack.name.clone(), stack.clone()))
+            .map(|stack| (
+              (stack.name.clone(), stack.config.server_id.clone()),
+              stack.clone(),
+            ))
             .collect::<HashMap<_, _>>();
 
           let deploy_updates =

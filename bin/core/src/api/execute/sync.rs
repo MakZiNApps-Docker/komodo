@@ -218,7 +218,10 @@ impl Resolve<ExecuteArgs> for RunSync {
           &sync.config.match_tags,
         )
       })
-      .map(|stack| (stack.name.clone(), stack.clone()))
+      .map(|stack| (
+        (stack.name.clone(), stack.config.server_id.clone()),
+        stack.clone(),
+      ))
       .collect::<HashMap<_, _>>();
 
     let deploy_cache = build_deploy_cache(SyncDeployParams {
