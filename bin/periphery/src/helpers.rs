@@ -64,10 +64,33 @@ pub fn parse_labels(labels: &[EnvironmentVar]) -> String {
       if p.value.starts_with(QUOTE_PATTERN)
         && p.value.ends_with(QUOTE_PATTERN)
       {
-        // If the value already wrapped in quotes, don't wrap it again
-        format!(" --label {}={}", p.variable, p.value)
+        if p.value.starts_with('\'') {
+          // Single-quoted: backticks are literal, pass through as-is
+          format!(" --label {}={}", p.variable, p.value)
+        } else if let Some(inner) = p
+          .value
+          .strip_prefix('"')
+          .and_then(|s| s.strip_suffix('"'))
+        {
+          // Double-quoted: escape backticks to prevent shell
+          // command substitution (needed for e.g. Traefik Host() rules)
+          format!(
+            " --label {}=\"{}\"",
+            p.variable,
+            inner.replace('`', "\\`")
+          )
+        } else {
+          // Mismatched quotes: pass through as-is
+          format!(" --label {}={}", p.variable, p.value)
+        }
       } else {
-        format!(" --label {}=\"{}\"", p.variable, p.value)
+        // Escape backticks to prevent shell command substitution
+        // when value is wrapped in double quotes
+        format!(
+          " --label {}=\"{}\"",
+          p.variable,
+          p.value.replace('`', "\\`")
+        )
       }
     })
     .collect::<Vec<_>>()

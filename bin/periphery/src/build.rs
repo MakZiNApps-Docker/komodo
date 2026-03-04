@@ -59,10 +59,32 @@ pub fn parse_build_args(build_args: &[EnvironmentVar]) -> String {
       if p.value.starts_with(QUOTE_PATTERN)
         && p.value.ends_with(QUOTE_PATTERN)
       {
-        // If the value already wrapped in quotes, don't wrap it again
-        format!(" --build-arg {}={}", p.variable, p.value)
+        if p.value.starts_with('\'') {
+          // Single-quoted: backticks are literal, pass through as-is
+          format!(" --build-arg {}={}", p.variable, p.value)
+        } else if let Some(inner) = p
+          .value
+          .strip_prefix('"')
+          .and_then(|s| s.strip_suffix('"'))
+        {
+          // Double-quoted: escape backticks to prevent shell
+          // command substitution
+          format!(
+            " --build-arg {}=\"{}\"",
+            p.variable,
+            inner.replace('`', "\\`")
+          )
+        } else {
+          // Mismatched quotes: pass through as-is
+          format!(" --build-arg {}={}", p.variable, p.value)
+        }
       } else {
-        format!(" --build-arg {}=\"{}\"", p.variable, p.value)
+        // Escape backticks to prevent shell command substitution
+        format!(
+          " --build-arg {}=\"{}\"",
+          p.variable,
+          p.value.replace('`', "\\`")
+        )
       }
     })
     .collect::<Vec<_>>()
