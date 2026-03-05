@@ -778,6 +778,10 @@ const templatesQueryBehaviorAtom =
 export const useTemplatesQueryBehavior = () =>
   useAtom<Types.TemplatesQueryBehavior>(templatesQueryBehaviorAtom);
 
+const serverFilterAtom = atomWithStorage<string>("server-filter-v0", "");
+
+export const useServerFilter = () => useAtom(serverFilterAtom);
+
 export type SettingsView =
   | "Variables"
   | "Tags"

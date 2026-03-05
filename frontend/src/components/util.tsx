@@ -67,6 +67,7 @@ import { DataTable, SortableHeader } from "@ui/data-table";
 import {
   useContainerPortsMap,
   useRead,
+  useServerFilter,
   useTemplatesQueryBehavior,
   usePromptHotkeys,
 } from "@lib/hooks";
@@ -1195,6 +1196,26 @@ export const TemplateQueryBehaviorSelector = () => {
         ].map((behavior) => (
           <SelectItem key={behavior} value={behavior + " Templates"}>
             {behavior} Templates
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+export const ServerFilterSelector = () => {
+  const [value, set] = useServerFilter();
+  const servers = useRead("ListServers", {}).data;
+  return (
+    <Select value={value || "__all__"} onValueChange={(v) => set(v === "__all__" ? "" : v)}>
+      <SelectTrigger className="w-[180px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__all__">All Servers</SelectItem>
+        {servers?.map((server) => (
+          <SelectItem key={server.id} value={server.id}>
+            {server.name}
           </SelectItem>
         ))}
       </SelectContent>

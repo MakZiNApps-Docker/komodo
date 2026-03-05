@@ -7,6 +7,7 @@ import {
   useFilterResources,
   useRead,
   useResourceParamType,
+  useServerFilter,
   useSetTitle,
   useTemplatesQueryBehavior,
   useUser,
@@ -17,7 +18,7 @@ import { Input } from "@ui/input";
 import { Button } from "@ui/button";
 import { useState } from "react";
 import { Search, Eye, EyeOff } from "lucide-react";
-import { NotFound, TemplateQueryBehaviorSelector } from "@components/util";
+import { NotFound, ServerFilterSelector, TemplateQueryBehaviorSelector } from "@components/util";
 import { Switch } from "@ui/switch";
 import { UsableResource } from "@types";
 import { ServerMonitoringTable } from "@components/resources/server/monitoring-table";
@@ -37,11 +38,15 @@ export default function Resources({ _type }: { _type?: UsableResource }) {
   );
   const [filter_update_available, toggle_filter_update_available] =
     useFilterByUpdateAvailable();
+  const [serverFilter] = useServerFilter();
   const query =
     type === "Stack" || type === "Deployment"
       ? {
           query: {
-            specific: { update_available: filter_update_available },
+            specific: {
+              update_available: filter_update_available,
+              server_ids: serverFilter ? [serverFilter] : [],
+            },
           },
         }
       : {};
@@ -114,6 +119,9 @@ export default function Resources({ _type }: { _type?: UsableResource }) {
                 Pending Update
                 <Switch checked={filter_update_available} />
               </div>
+            )}
+            {(type === "Stack" || type === "Deployment") && (
+              <ServerFilterSelector />
             )}
             {!(type === "Server" && monitoring) && (
               <TemplateQueryBehaviorSelector />
