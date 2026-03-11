@@ -54,6 +54,20 @@ jobs:
           cache-from: type=gha,scope=binaries-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=binaries-${{ matrix.arch }}
 
+      - name: Extract periphery binary
+        if: github.ref_type == 'tag'
+        run: |
+          docker pull ${{ env.IMAGE_PREFIX }}/komodo-binaries:latest-${{ matrix.arch }}
+          docker create --name tmp-bin ${{ env.IMAGE_PREFIX }}/komodo-binaries:latest-${{ matrix.arch }}
+          docker cp tmp-bin:/periphery periphery-${{ matrix.arch }}
+          docker rm tmp-bin
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          name: periphery-${{ matrix.arch }}
+          path: periphery-${{ matrix.arch }}
+
   build-frontend:
     runs-on: ubuntu-latest
     permissions:
@@ -168,12 +182,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: periphery-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: periphery-aarch64
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          chmod +x periphery-x86_64 periphery-aarch64
           gh release create "$GITHUB_REF_NAME" \
+            periphery-x86_64 periphery-aarch64 \
             --title "Komodo ${VERSION}" \
             --generate-notes \
             --notes "Core image: \`${{ env.IMAGE_PREFIX }}/komodo-core:${VERSION}\`
